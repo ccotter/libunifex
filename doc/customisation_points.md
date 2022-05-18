@@ -70,7 +70,7 @@ wrapped object.
 template<typename T, typename Allocator>
 struct allocator_wrapper {
   // Customise one CPO.
-  friend void tag_invoke(tag_t<get_allocator>, const allocator_wrapper& a) {
+  friend auto tag_invoke(tag_t<get_allocator>, const allocator_wrapper& a) {
     return a.alloc_;
   }
 
