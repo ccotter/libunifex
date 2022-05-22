@@ -13,9 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <unifex/just_done.hpp>
 #include <unifex/scheduler_concepts.hpp>
 #include <unifex/sync_wait.hpp>
 #include <unifex/timed_single_thread_context.hpp>
+#include <unifex/task.hpp>
 #include <unifex/then.hpp>
 #include <unifex/when_all.hpp>
 
@@ -90,7 +92,63 @@ TEST(WhenAll2, Smoke) {
   EXPECT_FALSE(ranFinalCallback);
 }
 
+TEST(WhenAll2, Error) {
+  task<int> task1 = []() -> task<int> { co_return 2; }();
+  task<int> task2 = []() -> task<int> { throw std::runtime_error("Oops"); co_return 4; }();
+  task<int> task3 = []() -> task<int> { co_return 6; }();
+
+  EXPECT_THROW(sync_wait(
+    when_all(std::move(task1), std::move(task2), std::move(task3))
+  ), std::runtime_error);
+}
+
+TEST(WhenAll2, ContainerError) {
+  std::vector<task<int>> tasks;
+  tasks.push_back([]() -> task<int> { co_return 2; }());
+  tasks.push_back([]() -> task<int> { throw std::runtime_error("Oops"); co_return 4; }());
+  tasks.push_back([]() -> task<int> { co_return 6; }());
+
+  EXPECT_THROW(sync_wait(when_all2(tasks.begin(), tasks.end())), std::runtime_error);
+}
+
 #endif // !UNIFEX_NO_EXCEPTIONS
+
+TEST(WhenAll2, Container) {
+  std::vector<task<int>> tasks;
+  tasks.push_back([]() -> task<int> { co_return 2; }());
+  tasks.push_back([]() -> task<int> { co_return 4; }());
+  tasks.push_back([]() -> task<int> { co_return 6; }());
+
+  auto results = sync_wait(when_all2(tasks.begin(), tasks.end())).value();
+
+  EXPECT_EQ(3u, results.size());
+
+  EXPECT_EQ(2, std::get<0>(std::get<0>(results[0])));
+  EXPECT_EQ(4, std::get<0>(std::get<0>(results[1])));
+  EXPECT_EQ(6, std::get<0>(std::get<0>(results[2])));
+}
+
+TEST(WhenAll2, Done) {
+  task<int> task1 = []() -> task<int> { co_return 2; }();
+  task<int> task2 = []() -> task<int> { co_await just_done(); co_return 4; }();
+  task<int> task3 = []() -> task<int> { co_return 6; }();
+
+  auto results = sync_wait(
+    when_all(std::move(task1), std::move(task2), std::move(task3))
+  );
+  EXPECT_FALSE(results.has_value());
+}
+
+TEST(WhenAll2, ContainerDone) {
+  std::vector<task<int>> tasks;
+  tasks.push_back([]() -> task<int> { co_return 2; }());
+  tasks.push_back([]() -> task<int> { co_await just_done(); co_return 4; }());
+  tasks.push_back([]() -> task<int> { co_return 6; }());
+
+  auto results = sync_wait(when_all2(tasks.begin(), tasks.end()));
+
+  EXPECT_FALSE(results.has_value());
+}
 
 struct string_const_ref_sender {
   template <
