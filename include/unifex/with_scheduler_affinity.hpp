@@ -17,12 +17,16 @@
 
 #include <unifex/await_transform.hpp>
 #include <unifex/connect_awaitable.hpp>
+#include <unifex/then.hpp>
 #include <unifex/finally.hpp>
 #include <unifex/scheduler_concepts.hpp>
 #include <unifex/sender_concepts.hpp>
 #include <unifex/tag_invoke.hpp>
 #include <unifex/type_traits.hpp>
 #include <unifex/unstoppable.hpp>
+
+#include <tuple>
+#include <variant>
 
 #include <unifex/detail/prologue.hpp>
 
@@ -34,14 +38,25 @@ struct _wsa_sender_wrapper final {
   class type;
 };
 
+template <class T> struct is_lvalue_ref : std::false_type {};
+template <class T> struct is_lvalue_ref<std::variant<std::tuple<T&>>> : std::true_type { using type = T; };
+
 template <typename Sender, typename Scheduler>
 static auto
 _make_sender(Sender&& sender, Scheduler&& scheduler) noexcept(noexcept(finally(
     static_cast<Sender&&>(sender),
     unstoppable(schedule(static_cast<Scheduler&&>(scheduler)))))) {
-  return finally(
-      static_cast<Sender&&>(sender),
-      unstoppable(schedule(static_cast<Scheduler&&>(scheduler))));
+  if constexpr (is_lvalue_ref<sender_value_types_t<Sender, std::variant, std::tuple>>::value) {
+    using type = typename is_lvalue_ref<sender_value_types_t<Sender, std::variant, std::tuple>>::type;
+    return finally(
+        static_cast<Sender&&>(sender) | unifex::then([](type& v) -> type* { return &v; }),
+        unstoppable(schedule(static_cast<Scheduler&&>(scheduler))))
+        | unifex::then([](type* v) -> type& { return *v; });
+  } else {
+    return finally(
+        static_cast<Sender&&>(sender),
+        unstoppable(schedule(static_cast<Scheduler&&>(scheduler))));
+  }
 }
 
 template <typename Sender, typename Scheduler>

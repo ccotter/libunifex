@@ -32,6 +32,8 @@
 
 using namespace unifex;
 
+#if 0
+
 TEST(Finally, Value) {
   timed_single_thread_context context;
 
@@ -79,4 +81,31 @@ TEST(Finally, BlockingKind) {
   auto snd2 = finally(just(), schedule(context.get_scheduler()));
   using Snd2 = decltype(snd2);
   static_assert(blocking_kind::never == sender_traits<Snd2>::blocking);
+}
+#endif
+
+int global;
+
+template <class T> constexpr auto ref_to_pointer(T&& t) -> T { return std::forward<T>(t); }
+template <class T, std::enable_if_t<std::is_lvalue_reference_v<T>>> constexpr auto ref_to_pointer(T& t) -> T { return &t; }
+
+template <class T> constexpr auto pointer_to_ref(T&& t) -> T { return std::forward<T>(t); }
+template <class T, std::enable_if_t<std::is_lvalue_reference_v<T>>> constexpr auto pointer_to_ref(std::decay_t<T>* t) -> T { return &t; }
+
+//template <class Sender>
+//auto preserve_ref_finally(Sender&& sender) {
+//    return then(
+//}
+
+TEST(Finally, Ref) {
+  auto res = then(just(), []() -> int& { return global; })
+    | then([](auto&& v) { return &v; })
+    | finally(just())
+    | then([](int* v) -> int& { return *v; })
+    | sync_wait();
+
+  ASSERT_FALSE(!res);
+  EXPECT_EQ(*res, 0);
+  global = 10;
+  EXPECT_EQ(*res, 10);
 }

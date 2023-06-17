@@ -142,7 +142,7 @@ namespace _await_cpo {
   private:
     template <typename Awaitable>
     using awaitable_single_value_result_t =
-        non_void_t<wrap_reference_t<decay_rvalue_t<await_result_t<Awaitable>>>>;
+        non_void_t<await_result_t<Awaitable>>;
 
     struct _comma_hack {
       template <typename T>
