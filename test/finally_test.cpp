@@ -22,8 +22,10 @@
 #include <unifex/just.hpp>
 #include <unifex/just_done.hpp>
 #include <unifex/just_error.hpp>
+#include <unifex/just_from.hpp>
 #include <unifex/let_done.hpp>
 #include <unifex/let_error.hpp>
+#include <unifex/upon_error.hpp>
 
 #include <cstdio>
 #include <thread>
@@ -31,6 +33,36 @@
 #include <gtest/gtest.h>
 
 using namespace unifex;
+
+struct sends_error_ref {
+
+  template <
+    template <typename...> class Variant,
+    template <typename...> class Tuple>
+  using value_types = Variant<Tuple<>>;
+
+  template <template <typename...> class Variant>
+  using error_types = Variant<int>;
+
+  static constexpr bool sends_done = false;
+
+  template <class Receiver>
+  struct operation {
+    friend auto tag_invoke(tag_t<start>, operation& self) noexcept {
+      set_error(std::move(self.receiver), self.val);
+    }
+
+    int& val;
+    Receiver receiver;
+  };
+
+  template <class Receiver>
+  friend auto tag_invoke(tag_t<connect>, sends_error_ref self, Receiver&& receiver) {
+    return operation<Receiver>{self.val, std::forward<Receiver>(receiver)};
+  }
+
+  int& val;
+};
 
 TEST(Finally, Value) {
   timed_single_thread_context context;
@@ -44,6 +76,61 @@ TEST(Finally, Value) {
   EXPECT_EQ(res->first, 42);
   EXPECT_EQ(res->second, context.get_thread_id());
 }
+
+TEST(Finally, Ref) {
+  {
+    int a = 0;
+
+    auto res = just_from([&a]() -> int& { return a; })
+      | finally(just())
+      | sync_wait();
+
+    ASSERT_FALSE(!res);
+    EXPECT_EQ(*res, 0);
+    a = 10;
+    EXPECT_EQ(*res, 10);
+  }
+
+  {
+    int a = 0;
+
+    auto res = just_from([&a]() -> const int& { return a; })
+      | finally(just())
+      | sync_wait();
+
+    ASSERT_FALSE(!res);
+    EXPECT_EQ(*res, 0);
+    a = 10;
+    EXPECT_EQ(*res, 10);
+  }
+
+  {
+    int a = 0;
+
+    auto res = just_from([&a]() -> int& { return a; })
+      | finally(just())
+      | then([](int& i) -> int& { return i; })
+      | sync_wait();
+
+    ASSERT_FALSE(!res);
+    EXPECT_EQ(*res, 0);
+    a = 10;
+    EXPECT_EQ(*res, 10);
+  }
+}
+
+#if 0
+TEST(Finally, ErrorRef) {
+  int a = 0;
+  auto res = just_error(5)
+    | finally(just())
+    | upon_error([](auto&&...) -> int { return 0; })
+    | sync_wait();
+
+  (void)a;
+  ASSERT_FALSE(!res);
+}
+#endif
 
 TEST(Finally, Done) {
   timed_single_thread_context context;
