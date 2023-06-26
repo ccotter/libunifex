@@ -199,7 +199,7 @@ namespace unifex
         SourceSender,
         CompletionSender,
         Receiver,
-        std::decay_t<Error>>::type;
+        Error>::type;
 
     template <
         typename SourceSender,
@@ -420,10 +420,10 @@ namespace unifex
       template <typename Error>
       void set_error(Error&& error) && noexcept {
         static_assert(
-            std::is_nothrow_constructible_v<std::decay_t<Error>, Error>);
+            std::is_nothrow_constructible_v<Error, Error>);
 
         auto* const op = op_;
-        unifex::activate_union_member<std::decay_t<Error>>(
+        unifex::activate_union_member<Error>(
             op->error_, static_cast<Error&&>(error));
 
         unifex::deactivate_union_member(op->sourceOp_);
@@ -446,7 +446,7 @@ namespace unifex
                   });
           unifex::start(completionOp);
         } UNIFEX_CATCH (...) {
-          unifex::deactivate_union_member<std::decay_t<Error>>(op->error_);
+          unifex::deactivate_union_member<Error>(op->error_);
           unifex::set_error(
               static_cast<Receiver&&>(op->receiver_), std::current_exception());
         }
@@ -656,8 +656,8 @@ namespace unifex
       template <template <typename...> class Variant>
       using error_types =
           typename concat_type_lists_unique_t<
-              sender_error_types_t<SourceSender, decayed_tuple<type_list>::template apply>,
-              sender_error_types_t<CompletionSender, decayed_tuple<type_list>::template apply>,
+              sender_error_types_t<SourceSender, type_list>,
+              sender_error_types_t<CompletionSender, type_list>,
               type_list<std::exception_ptr>>::template apply<Variant>;
 
       static constexpr bool sends_done =

@@ -14,17 +14,19 @@
  * limitations under the License.
  */
 #include <unifex/finally.hpp>
+
 #include <unifex/inplace_stop_token.hpp>
-#include <unifex/sync_wait.hpp>
-#include <unifex/timed_single_thread_context.hpp>
-#include <unifex/scheduler_concepts.hpp>
-#include <unifex/then.hpp>
+#include <unifex/into_variant.hpp>
 #include <unifex/just.hpp>
 #include <unifex/just_done.hpp>
 #include <unifex/just_error.hpp>
 #include <unifex/just_from.hpp>
 #include <unifex/let_done.hpp>
 #include <unifex/let_error.hpp>
+#include <unifex/scheduler_concepts.hpp>
+#include <unifex/sync_wait.hpp>
+#include <unifex/then.hpp>
+#include <unifex/timed_single_thread_context.hpp>
 #include <unifex/upon_error.hpp>
 
 #include <cstdio>
@@ -42,14 +44,14 @@ struct sends_error_ref {
   using value_types = Variant<Tuple<>>;
 
   template <template <typename...> class Variant>
-  using error_types = Variant<int>;
+  using error_types = Variant<int&>;
 
   static constexpr bool sends_done = false;
 
   template <class Receiver>
   struct operation {
     friend auto tag_invoke(tag_t<start>, operation& self) noexcept {
-      set_error(std::move(self.receiver), self.val);
+      set_error(std::move(self.receiver), (int&)self.val);
     }
 
     int& val;
@@ -119,18 +121,44 @@ TEST(Finally, Ref) {
   }
 }
 
-#if 0
-TEST(Finally, ErrorRef) {
-  int a = 0;
-  auto res = just_error(5)
-    | finally(just())
-    | upon_error([](auto&&...) -> int { return 0; })
-    | sync_wait();
+  struct ref_receiver {
+    void set_value(int& ref) noexcept {
+      this->ref = ref;
+    }
+    //void set_value(double) noexcept { std::terminate(); }
+    template <class Error>
+    void set_error(Error&&) noexcept { std::terminate(); }
+    void set_done() noexcept { std::terminate(); }
 
-  (void)a;
-  ASSERT_FALSE(!res);
+    std::optional<std::reference_wrapper<int>> ref;
+  };
+
+TEST(Finally, ErrorRef) {
+
+  static int a = 0;
+  auto sndr =
+    sends_error_ref{a}
+    //| finally(just())
+    | upon_error([](auto&& v) {
+        //decltype(v)::okok;
+        if constexpr (std::is_same_v<decltype(v), int&>) {
+          std::cout << "Got 1\n";
+          return (int&)a;
+          //return (decltype(v)&&)v;
+        } else {
+          std::cout << "Got 2\n";
+          return (char)0.0;
+        }
+      });
+
+  ref_receiver rec;
+  auto op = connect(std::move(sndr), rec);
+  start(op);
+  ASSERT_TRUE(rec.ref.has_value());
+  EXPECT_EQ(rec.ref.value().get(), 0);
+  a = 10;
+  EXPECT_EQ(rec.ref.value().get(), 10);
 }
-#endif
 
 TEST(Finally, Done) {
   timed_single_thread_context context;
