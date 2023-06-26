@@ -21,12 +21,56 @@
 #include <unifex/std_concepts.hpp>
 #include <unifex/detail/unifex_fwd.hpp>
 
+#include <unifex/type_list.hpp>
+
 #include <exception>
+#include <string>
 #include <type_traits>
+#include <unordered_map>
 
 #include <unifex/detail/prologue.hpp>
 
+#include <iostream>
+
 namespace unifex {
+
+std::unordered_map<std::string, int>& get_track_map();
+
+template <class T>
+struct decay_non_lvalue_ref {
+  using type = T;
+};
+
+
+template <class T> struct decay_non_lvalue_ref<T&> { using type = T&; };
+template <class T> struct decay_non_lvalue_ref<T&&> { using type = T; };
+template <class T> struct decay_non_lvalue_ref<const T&&> { using type = T; };
+template <class T> struct decay_non_lvalue_ref<const T&> { using type = T; };
+
+template <class T>
+using decay_non_lvalue_ref_t = typename decay_non_lvalue_ref<T>::type;
+
+template <template <typename...> class Tuple>
+struct decay_non_lvalue_ref_tuple {
+  template <typename... Ts>
+  using apply = Tuple<decay_non_lvalue_ref_t<Ts>...>;
+};
+
+template <class Receiver, class... Ts>
+void track_set_value() {
+  auto& m = get_track_map();
+  std::string receiver_type = typeid(Receiver).name();
+  std::string values = typeid(std::tuple<Ts...>).name();
+  std::string combined = receiver_type + " / " + values;
+  if (receiver_type.find("op_for") != std::string::npos && receiver_type.find("any") != std::string::npos) return;
+  std::cout << "set_value called for receiver=" << receiver_type << " values=" << values << "\n";
+  if (m[combined] == 0) {
+    std::cout << "Oops!\n";
+    *(int*)0 = 0;
+  }
+  --m[combined];
+}
+
 namespace _rec_cpo {
   inline const struct _set_value_fn {
   private:
@@ -46,6 +90,7 @@ namespace _rec_cpo {
         noexcept(
             is_nothrow_tag_invocable_v<_set_value_fn, Receiver, Values...>)
         -> _result_t<Receiver, Values...> {
+      track_set_value<Receiver, decay_non_lvalue_ref_t<Values>...>();
       return unifex::tag_invoke(
           _set_value_fn{}, (Receiver &&) r, (Values &&) values...);
     }
@@ -55,6 +100,7 @@ namespace _rec_cpo {
         noexcept(noexcept(
             static_cast<Receiver&&>(r).set_value((Values &&) values...)))
         -> _result_t<Receiver, Values...> {
+      track_set_value<Receiver, decay_non_lvalue_ref_t<Values>...>();
       return static_cast<Receiver&&>(r).set_value((Values &&) values...);
     }
   } set_value{};

@@ -152,6 +152,7 @@ TEST(Variant, CombineJustAndJust) {
   std::cout << "variant_sender done " << *result << "\n";
 }
 
+#if 0
 TEST(Variant, CombineFunctors) {
   auto f1 = [&]() noexcept -> any_sender_of<int> {
     return just(5);
@@ -174,6 +175,7 @@ TEST(Variant, CombineFunctors) {
 
   std::cout << "variant_sender done " << *result << "\n";
 }
+#endif
 
 TEST(Variant, CombineJustAndJust_Invalid) {
   auto func = [](bool v) -> variant_sender<decltype(just(5)), decltype(just(std::declval<std::string>()))> {

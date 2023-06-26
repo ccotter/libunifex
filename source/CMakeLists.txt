@@ -16,6 +16,7 @@ target_sources(unifex
     exception.cpp
     inplace_stop_token.cpp
     manual_event_loop.cpp
+    receiver_concepts.cpp
     static_thread_pool.cpp
     task.cpp
     thread_unsafe_event_loop.cpp

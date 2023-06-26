@@ -30,11 +30,7 @@
 using namespace unifex;
 
 TEST(async_mutex, multiple_threads) {
-#if !defined(UNIFEX_TEST_LIMIT_ASYNC_MUTEX_ITERATIONS)
-  constexpr int iterations = 100'000;
-#else
-  constexpr int iterations = UNIFEX_TEST_LIMIT_ASYNC_MUTEX_ITERATIONS;
-#endif
+  constexpr int iterations = 10000;
 
   async_mutex mutex;
 

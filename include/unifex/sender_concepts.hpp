@@ -212,6 +212,34 @@ namespace _start_cpo {
 } // namespace _start_cpo
 using _start_cpo::start;
 
+template <class Sender, class Receiver, class T>
+void track_connect_one_type() {
+
+  auto& m = get_track_map();
+  std::string sender_type = typeid(Sender).name();
+  std::string receiver_type = typeid(Receiver).name();
+  std::string values = typeid(T).name();
+  std::string combined = receiver_type + " / " + values;
+  ++m[combined];
+  std::cout << "connect called for sender=" << sender_type << " receiver=" << receiver_type << " values=" << values << "\n";
+}
+
+template <class Sender, class Receiver, class... Ts>
+struct track_connect_impl;
+
+template <class Sender, class Receiver, class... Ts>
+struct track_connect_impl<Sender, Receiver, type_list<Ts...>> {
+  void operator()() {
+    (track_connect_one_type<Sender, Receiver, Ts>(), ...);
+  }
+};
+
+template <class Sender, class Receiver>
+void track_connect(Sender&, Receiver&) {
+  using value_types = typename sender_traits<Sender>::template value_types<type_list, decay_non_lvalue_ref_tuple<std::tuple>:: template apply>;
+  track_connect_impl<Sender, Receiver, value_types>{}();
+}
+
 namespace _connect {
   template <typename Sender, typename Receiver>
   using _member_connect_result_t =
@@ -260,6 +288,7 @@ namespace _connect {
       auto operator()(Sender&& s, Receiver&& r) const
           noexcept(is_nothrow_tag_invocable_v<_fn, Sender, Receiver>) ->
           _result_t<Sender, Receiver> {
+        track_connect(s, r);
         return unifex::tag_invoke(_fn{}, (Sender &&) s, (Receiver &&) r);
       }
       template(typename Sender, typename Receiver)
@@ -269,6 +298,7 @@ namespace _connect {
       auto operator()(Sender&& s, Receiver&& r) const
           noexcept(noexcept(((Sender &&) s).connect((Receiver &&) r))) ->
           _result_t<Sender, Receiver> {
+        track_connect(s, r);
         return ((Sender &&) s).connect((Receiver &&) r);
       }
     };
