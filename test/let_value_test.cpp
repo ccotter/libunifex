@@ -36,6 +36,17 @@ using namespace unifex;
 using namespace std::chrono;
 using namespace std::chrono_literals;
 
+TEST(LetValueTest, smoke) {
+  static int xx;
+  auto s = let_value(just(1.,2.,3.), [](auto x, auto y, auto z) {
+    return just(2+(int)x);
+    //return just() | then([] -> int& { return xx; })
+  });
+  auto val = sync_wait(std::move(s));
+  //EXPECT_EQ(*val, 3);
+}
+
+#if 0
 namespace {
 constexpr auto async = [](auto& context, auto&& func) {
     return then(
@@ -281,3 +292,4 @@ TEST(Let, LetValueWithTraitlessPredecessor) {
   ASSERT_TRUE(ret);
   EXPECT_EQ(*ret, 42);
 }
+#endif

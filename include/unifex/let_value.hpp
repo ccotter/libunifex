@@ -39,15 +39,15 @@ namespace _let_v {
 template <typename... Values>
 using decayed_tuple = std::tuple<std::decay_t<Values>...>;
 
-template <typename Operation, typename... Values>
+template <typename Operation, typename FinalValues, typename... Values>
 struct _successor_receiver {
   struct type;
 };
-template <typename Operation, typename... Values>
-using successor_receiver = typename _successor_receiver<Operation, Values...>::type;
+template <typename Operation, typename FinalValues, typename... Values>
+using successor_receiver = typename _successor_receiver<Operation, FinalValues, Values...>::type;
 
-template <typename Operation, typename... Values>
-struct _successor_receiver<Operation, Values...>::type {
+template <typename Operation, typename FinalValues, typename... Values>
+struct _successor_receiver<Operation, FinalValues, Values...>::type {
   using successor_receiver = type;
   Operation& op_;
 
@@ -59,6 +59,8 @@ struct _successor_receiver<Operation, Values...>::type {
   void set_value(SuccessorValues&&... values) && noexcept {
     auto& op = op_;
     UNIFEX_TRY {
+      //using X2 = std::tuple<SuccessorValues..., Values...>;
+      //using Y2 = typename X2::okok;
       // Taking by value here to force a copy on the offchance the value
       // objects lives in the operation state (e.g., just), in which
       // case the call to cleanup() would invalidate them.
@@ -66,6 +68,7 @@ struct _successor_receiver<Operation, Values...>::type {
         cleanup();
         unifex::set_value(
             std::move(op.receiver_), (decltype(copies) &&) copies...);
+            //std::move(op.receiver_), static_cast<Values>(static_cast<decltype(copies)&&>(copies))...);
       } ((SuccessorValues&&) values...);
     } UNIFEX_CATCH (...) {
       unifex::set_error(std::move(op.receiver_), std::current_exception());
@@ -117,15 +120,15 @@ private:
 #endif
 };
 
-template <typename Operation>
+template <typename Operation, typename FinalValues>
 struct _predecessor_receiver {
   struct type;
 };
-template <typename Operation>
-using predecessor_receiver = typename _predecessor_receiver<Operation>::type;
+template <typename Operation, typename FinalValues>
+using predecessor_receiver = typename _predecessor_receiver<Operation, FinalValues>::type;
 
-template <typename Operation>
-struct _predecessor_receiver<Operation>::type {
+template <typename Operation, typename FinalValues>
+struct _predecessor_receiver<Operation, FinalValues>::type {
   using predecessor_receiver = type;
   using receiver_type = typename Operation::receiver_type;
 
@@ -156,7 +159,7 @@ struct _predecessor_receiver<Operation>::type {
             [&] {
               return unifex::connect(
                   std::apply(std::move(op.func_), valueTuple),
-                  successor_receiver<Operation, Values...>{op});
+                  successor_receiver<Operation, FinalValues, Values...>{op});
             });
       unifex::start(succOp);
       destroyValues.release();
@@ -200,18 +203,19 @@ struct _predecessor_receiver<Operation>::type {
 #endif
 };
 
-template <typename Predecessor, typename SuccessorFactory, typename Receiver>
+template <typename Predecessor, typename SuccessorFactory, typename Receiver, typename FinalValues>
 struct _op {
   struct type;
 };
-template <typename Predecessor, typename SuccessorFactory, typename Receiver>
+template <typename Predecessor, typename SuccessorFactory, typename Receiver, typename FinalValues>
 using operation = typename _op<
     Predecessor,
     SuccessorFactory,
-    remove_cvref_t<Receiver>>::type;
+    remove_cvref_t<Receiver>,
+    FinalValues>::type;
 
-template <typename Predecessor, typename SuccessorFactory, typename Receiver>
-struct _op<Predecessor, SuccessorFactory, Receiver>::type {
+template <typename Predecessor, typename SuccessorFactory, typename Receiver, typename FinalValues>
+struct _op<Predecessor, SuccessorFactory, Receiver, FinalValues>::type {
   using operation = type;
   using receiver_type = Receiver;
 
@@ -221,10 +225,10 @@ struct _op<Predecessor, SuccessorFactory, Receiver>::type {
 
   template <typename... Values>
   using successor_operation =
-      connect_result_t<successor_type<Values...>, successor_receiver<operation, Values...>>;
+      connect_result_t<successor_type<Values...>, successor_receiver<operation, FinalValues, Values...>>;
 
-  friend predecessor_receiver<operation>;
-  template <typename Operation, typename... Values>
+  friend predecessor_receiver<operation, FinalValues>;
+  template <typename Operation, typename FinalValues2, typename... Values>
   friend struct _successor_receiver;
 
   template <typename SuccessorFactory2, typename Receiver2>
@@ -236,7 +240,7 @@ struct _op<Predecessor, SuccessorFactory, Receiver>::type {
         receiver_((Receiver2 &&) receiver) {
     unifex::activate_union_member_with(predOp_, [&] {
       return unifex::connect(
-          (Predecessor &&) pred, predecessor_receiver<operation>{*this});
+          (Predecessor &&) pred, predecessor_receiver<operation, FinalValues>{*this});
     });
   }
 
@@ -259,7 +263,7 @@ private:
       template value_types<manual_lifetime_union, decayed_tuple>
           values_;
   union {
-    manual_lifetime<connect_result_t<Predecessor, predecessor_receiver<operation>>> predOp_;
+    manual_lifetime<connect_result_t<Predecessor, predecessor_receiver<operation, FinalValues>>> predOp_;
     typename sender_traits<predecessor_type>::template
         value_types<manual_lifetime_union, successor_operation>
             succOp_;
@@ -370,12 +374,14 @@ public:
           std::is_nothrow_constructible_v<SuccessorFactory, SuccessorFactory2>)
     : pred_((Predecessor2 &&) pred), func_((SuccessorFactory2 &&) func) {}
 
+  using FinalValues = value_types<type_list, type_list>;
+
   template(typename CPO, typename Sender, typename Receiver)
       (requires same_as<CPO, tag_t<unifex::connect>> AND
         same_as<remove_cvref_t<Sender>, type>)
   friend auto tag_invoke([[maybe_unused]] CPO cpo, Sender&& sender, Receiver&& receiver)
-      -> operation<decltype((static_cast<Sender&&>(sender).pred_)), SuccessorFactory, Receiver> {
-    return operation<decltype((static_cast<Sender&&>(sender).pred_)), SuccessorFactory, Receiver>{
+      -> operation<decltype((static_cast<Sender&&>(sender).pred_)), SuccessorFactory, Receiver, FinalValues> {
+    return operation<decltype((static_cast<Sender&&>(sender).pred_)), SuccessorFactory, Receiver, FinalValues>{
         static_cast<Sender&&>(sender).pred_,
         static_cast<Sender&&>(sender).func_,
         static_cast<Receiver&&>(receiver)};
