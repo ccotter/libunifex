@@ -15,6 +15,7 @@
  */
 #pragma once
 
+#include <unifex/any_object.hpp>
 #include <unifex/any_ref.hpp>
 #include <unifex/any_sender_of.hpp>
 #include <unifex/any_unique.hpp>
@@ -134,7 +135,7 @@ using _any_void_sender_of =
 
 template <typename... CPOs>
 using any_scheduler_impl =
-  any_unique_t<
+  any_object_t<
     _schedule_and_connect<CPOs...>,
     _copy_as<any_scheduler<CPOs...>>,
     _get_type_index,

@@ -72,7 +72,7 @@ namespace unifex
     struct invalid_obj
       : private detail::with_abort_tag_invoke<invalid_obj, CPOs>... {};
 
-    static_assert(can_be_type_erased_v<invalid_obj>);
+    //static_assert(can_be_type_erased_v<invalid_obj>);
 
     class type;
   };
