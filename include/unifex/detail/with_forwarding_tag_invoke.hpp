@@ -58,7 +58,7 @@ namespace unifex
     struct _with_forwarding_tag_invoke<Derived, CPO, Ret(Args...)> {
       struct type {
         friend Ret tag_invoke(CPO cpo, replace_this_t<Args, Derived>... args) {
-          auto& wrapper = extract_this<Args...>{}(args...);
+          auto& wrapper = extract_this<Args...>::extract(args...);
           auto& wrapped = get_wrapped_object(wrapper);
           return static_cast<CPO&&>(cpo)(replace_this<Args>::get(
               static_cast<decltype(args)&&>(args), wrapped)...);
@@ -72,13 +72,13 @@ namespace unifex
       struct type {
         friend Ret
         tag_invoke(CPO cpo, replace_this_t<Args, Derived>... args) noexcept {
-          auto& wrapper = extract_this<Args...>{}(args...);
+          auto& wrapper = extract_this<Args...>::extract(args...);
           auto& wrapped = get_wrapped_object(wrapper);
 
           // Sanity check that all of the component expressions here are
           // noexcept so we don't end up with exception tables being generated
           // for this function.
-          static_assert(noexcept(extract_this<Args...>{}(args...)));
+          static_assert(noexcept(extract_this<Args...>::extract(args...)));
           static_assert(noexcept(get_wrapped_object(wrapper)));
           static_assert(
               noexcept(static_cast<CPO&&>(cpo)(replace_this<Args>::get(

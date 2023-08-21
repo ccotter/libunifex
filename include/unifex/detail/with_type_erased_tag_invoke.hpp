@@ -39,8 +39,8 @@ namespace unifex
         using cpo_t = base_cpo_t<CPO>;
         static_assert(
             !NoExcept ||
-            noexcept(extract_this<Args...>{}((decltype(args)&&)args...)));
-        auto&& t = extract_this<Args...>{}((decltype(args)&&)args...);
+            noexcept(extract_this<Args...>::extract((decltype(args)&&)args...)));
+        auto&& t = extract_this<Args...>::extract((decltype(args)&&)args...);
         void* objPtr = get_object_address(t);
         auto* fnPtr = get_vtable(t)->template get<CPO>();
 

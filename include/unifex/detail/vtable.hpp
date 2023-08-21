@@ -57,9 +57,9 @@ namespace unifex
     Ret _vtable_invoke(
         CPO cpo,
         replace_this_with_void_ptr_t<Args>... args) noexcept(NoExcept) {
-      static_assert(!NoExcept || noexcept(extract_this<Args...>{}(args...)));
+      static_assert(!NoExcept || noexcept(extract_this<Args...>::extract(args...)));
 
-      void* thisPointer = extract_this<Args...>{}(args...);
+      void* thisPointer = extract_this<Args...>::extract(args...);
 
       static_assert(
           !NoExcept ||

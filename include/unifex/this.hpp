@@ -125,16 +125,16 @@ using replace_this_with_void_ptr_t =
 template <bool...>
 struct _extract_this {
   template <typename TFirst, typename... TRest>
-  TFirst&& operator()(TFirst&& first, TRest&&...) const noexcept {
+  static TFirst&& extract(TFirst&& first, TRest&&...) noexcept {
     return (TFirst&&) first;
   }
 };
 template <bool... IsThis>
 struct _extract_this<false, IsThis...> {
   template <typename... TRest>
-  decltype(auto) operator()(detail::_ignore, TRest&&... rest) const noexcept {
+  static decltype(auto) extract(detail::_ignore, TRest&&... rest) noexcept {
     static_assert(sizeof...(IsThis) > 0, "Arguments to extract_this");
-    return _extract_this<IsThis...>{}((TRest &&) rest...);
+    return _extract_this<IsThis...>::extract((TRest &&) rest...);
   }
 };
 
