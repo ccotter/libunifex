@@ -9,6 +9,7 @@ foreach(file-path ${example-sources})
     get_filename_component(file-name ${file-path-without-ext} NAME)
     add_executable( ${file-name} ${file-path})
     target_link_libraries(${file-name} PUBLIC unifex)
+    target_include_directories(${file-name} PUBLIC ${CMAKE_SOURCE_DIR}/stdexec/include)
     add_test(NAME "example-${file-name}" COMMAND ${file-name})
 endforeach()
 

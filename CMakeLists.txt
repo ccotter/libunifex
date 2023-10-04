@@ -18,6 +18,10 @@ include(unifex_flags)
 # The library target is defined in the source subdirectory
 add_subdirectory(source)
 
+if (NOT EXISTS ${CMAKE_SOURCE_DIR}/stdexec)
+  message(FATAL_ERROR "Please git clone https://github.com/NVIDIA/stdexec in the root of the repo before configuring ${CMAKE_SOURCE_DIR}/stdexec")
+endif()
+
 # Don't build tests or examples if this project is not a top-level project
 # and only consumed via add_subdirectory in a git submodule fashion
 if (PROJECT_IS_TOP_LEVEL)
